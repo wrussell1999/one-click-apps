@@ -1,0 +1,92 @@
+captainVersion: 4
+
+services:
+    postgres:
+      image: postgres
+      volumes:
+        - postgres-data:/var/lib/postgresql/data
+      environment:
+        POSTGRES_DB: $$cap_postgres_db
+        POSTGRES_USER: kestra
+        POSTGRES_PASSWORD: $$cap_postgres_password
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+        interval: 30s
+        timeout: 10s
+        retries: 10
+    
+    $$cap_appname:
+      image: kestra/kestra:$$cap_kestra_version
+      pull_policy: always
+      user: "root"
+      command: server standalone --worker-thread=128
+      volumes:
+        - kestra-data:/app/storage
+        - /var/run/docker.sock:/var/run/docker.sock
+        - /tmp/kestra-wd:/tmp/kestra-wd
+      environment:
+        KESTRA_CONFIGURATION: |
+          datasources:
+            postgres:
+              url: jdbc:postgresql://postgres:5432/kestra
+              driverClassName: org.postgresql.Driver
+              username: kestra
+              password: k3str4
+          kestra:
+            server:
+              basic-auth:
+                enabled: false
+                username: "admin@kestra.io" # it must be a valid email address
+                password: kestra
+            repository:
+              type: postgres
+            storage:
+              type: local
+              local:
+                base-path: "/app/storage"
+            queue:
+              type: postgres
+            tasks:
+              tmp-dir:
+                path: /tmp/kestra-wd/tmp
+            url: http://0.0.0.0:8080/
+      ports:
+        - "8080:8080"
+        - "8081:8081"
+      depends_on:
+        postgres:
+          condition: service_started
+      caproverExtra:
+          containerHttpPort: '8080'
+
+caproverOneClickApp:
+    variables:
+        - id: $$cap_kestra_version
+          label: Kestra Version
+          defaultValue: 'latest-full'
+          description: Check out our Docker page for the valid tags https://hub.docker.com/r/kestra/kestra/tags
+        - id: $$cap_postgres_db
+          label: Postgres DB
+          defaultValue: 'kestra'
+        - id: $$cap_postgres_password
+          label: Postgres Password
+          defaultValue: k3str4
+          validRegex: /^(?=.*\d).{6,}$/
+        - id: $$cap_kestra_username
+          label: Kestra Username
+          defaultValue: help@kestra.io
+        - id: $$cap_kestra_password
+          label: Kestra Password
+          defaultValue: k3str4
+          validRegex: /^(?=.*\d).{6,}$/
+        
+    instructions:
+        start: |-
+            Kestra is a universal open-source orchestrator that makes both scheduled and event-driven workflows easy. By bringing Infrastructure as Code best practices to data, process, and microservice orchestration, you can build reliable workflows and manage them with confidence.
+        end: |-
+            Kestra is deployed. Now you can access Kestra at http://$$cap_appname.$$cap_root_domain
+            
+    displayName: Kestra
+    isOfficial: true 
+    description: Infinitely scalable, event-driven, language-agnostic orchestration and scheduling platform to manage millions of workflows declaratively in code.
+    documentation: https://kestra.io/docs
